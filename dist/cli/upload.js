@@ -49,6 +49,7 @@ const helpers_9 = require("../testing/helpers");
 const errors_3 = require("./errors");
 const uuid_1 = require("uuid");
 const validate_1 = require("./validate");
+const validate_2 = require("./validate");
 function cleanup(intermediateOutputDirectory, logger) {
     logger.info('\n\nCleaning up...');
     if (fs_extra_1.default.existsSync(intermediateOutputDirectory)) {
@@ -81,6 +82,8 @@ async function handleUpload({ intermediateOutputDirectory, manifestFile, apiEndp
         intermediateOutputDirectory,
         timerStrategy,
     });
+    const packDefinitionModule = await Promise.resolve(`${path.resolve(bundlePath)}`).then(s => __importStar(require(s)));
+    (0, validate_1.validateExports)(packDefinitionModule);
     const manifest = await (0, helpers_5.importManifest)(bundlePath);
     // Since package.json isn't in dist, we grab it from the root directory instead.
     const packageJson = await Promise.resolve(`${(0, helpers_6.isTestCommand)() ? '../package.json' : '../../package.json'}`).then(s => __importStar(require(s)));
@@ -95,7 +98,7 @@ async function handleUpload({ intermediateOutputDirectory, manifestFile, apiEndp
         // notice if there are issues with how it's returned.
         logger.info('Validating Pack metadata...');
         const metadataWithFakeVersion = !packVersion ? { ...metadata, version: '0.0.1' } : metadata;
-        await (0, validate_1.validateMetadata)(metadataWithFakeVersion, { checkDeprecationWarnings: false });
+        await (0, validate_2.validateMetadata)(metadataWithFakeVersion, { checkDeprecationWarnings: false });
         if (!packVersion) {
             try {
                 const nextPackVersionInfo = await client.getNextPackVersion(packId, {}, { proposedMetadata: JSON.stringify(metadata), sdkVersion: codaPacksSDKVersion });

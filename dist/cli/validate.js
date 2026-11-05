@@ -22,8 +22,11 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateMetadata = exports.checkAgentConnectorListings = exports.getConnectorPackIds = exports.handleValidate = void 0;
+exports.validateMetadata = exports.checkAgentConnectorListings = exports.getConnectorPackIds = exports.handleValidate = exports.validateExports = void 0;
 const types_1 = require("../types");
 const compile_1 = require("../testing/compile");
 const metadata_1 = require("../helpers/metadata");
@@ -35,13 +38,27 @@ const helpers_3 = require("./helpers");
 const coda_1 = require("../helpers/external-api/coda");
 const helpers_4 = require("./helpers");
 const helpers_5 = require("./helpers");
+const path_1 = __importDefault(require("path"));
 const helpers_6 = require("../testing/helpers");
 const helpers_7 = require("../testing/helpers");
+const pack_exports_1 = require("../helpers/pack_exports");
 const upload_validation_1 = require("../testing/upload_validation");
+/** Validates exports for CLI commands only, calling printAndExit on failure. */
+function validateExports(moduleExports) {
+    try {
+        (0, pack_exports_1.validatePackDefinitionExports)(moduleExports);
+    }
+    catch (error) {
+        (0, helpers_7.printAndExit)(error instanceof Error ? error.message : String(error));
+    }
+}
+exports.validateExports = validateExports;
 async function handleValidate({ manifestFile, checkDeprecationWarnings, checkConnectors, apiToken, apiEndpoint, }) {
     var _a, _b;
     const fullManifestPath = (0, helpers_5.makeManifestFullPath)(manifestFile);
     const { bundlePath } = await (0, compile_1.compilePackBundle)({ manifestPath: fullManifestPath, minify: false });
+    const packDefinitionModule = await Promise.resolve(`${path_1.default.resolve(bundlePath)}`).then(s => __importStar(require(s)));
+    validateExports(packDefinitionModule);
     const manifest = await (0, helpers_3.importManifest)(bundlePath);
     // Since it's okay to not specify a version, we inject one if it's not provided.
     if (!manifest.version) {

@@ -23,6 +23,7 @@ import mockFs from 'mock-fs';
 import os from 'os';
 import {parsePackSettingsUpdate} from '../cli/pack_settings';
 import path from 'path';
+import {rejects} from 'assert';
 import sinon from 'sinon';
 import * as testingHelpers from '../testing/helpers';
 import {tmpdir} from 'os';
@@ -1499,6 +1500,20 @@ describe('Headless CLI', () => {
         ...args,
       } as any);
     }
+
+    it('rejects a primitive definition with an actionable export-validation error', async () => {
+      fsExtra.writeFileSync(manifestFile, 'export const pack = 1;');
+      await rejects(validate({checkConnectors: false}), {
+        message:
+          'Invalid Pack definition export. Export a definition object as "agent", "connector", "pack", or "manifest".',
+      });
+      assert.equal(exitCode, 1);
+      assert.equal(
+        exitMessage,
+        'Invalid Pack definition export. Export a definition object as "agent", "connector", "pack", or "manifest".',
+      );
+      sinon.assert.calledOnce(printAndExitStub);
+    });
 
     it('skips listing requests without a token and still passes', async () => {
       sinon.stub(configStorage, 'getApiKey').returns(undefined);

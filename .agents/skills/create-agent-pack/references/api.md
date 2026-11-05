@@ -40,9 +40,69 @@ pack.setTools({
 Browse https://superhuman.com/store/connectors, open the connector's listing, and read its pack ID off
 the listing page.
 
-Use `setTools` above and the two trigger setters below to define the agent.
+Use `setTools` above, `addDefaultRoutine` for named jobs, and the plain trigger setters below when a
+wake-up needs no separate name or per-run instructions.
+
+## `addDefaultRoutine({name?, instructions?, trigger})`
+
+Adds one named job: a label and/or per-run instructions wrapped around a single trigger. Call it
+once per job. A routine needs a non-blank `name` or `instructions` (or both). Prefer this over a
+plain trigger setter when the agent has more than one wake-up path, or when a wake-up should do
+something different from `setInstructions`. Routines are still **one agent with many jobs** — they
+do not hand work to another custom agent or grant a different tool set.
+
+```typescript
+pack.addDefaultRoutine({
+  name: 'Daily brief',
+  instructions: 'Summarize overnight changes. Include source links.',
+  trigger: {
+    kind: sdk.DefaultTriggerKind.Schedule,
+    rruleString: [
+      'DTSTART;TZID=America/New_York:20260101T090000',
+      'RRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0',
+    ].join('\n'),
+  },
+});
+
+pack.addDefaultRoutine({
+  name: 'Deploy watch',
+  instructions: 'Explain the deploy and link the runbook.',
+  trigger: {
+    kind: sdk.DefaultTriggerKind.Event,
+    type: sdk.EventTriggerType.Slack,
+    eventType: sdk.SlackEventType.MessageKeyword,
+    keywords: ['deploy', 'rollback'],
+  },
+});
+
+pack.addDefaultRoutine({
+  name: 'Citation assist',
+  instructions: 'Offer a citation when the user asserts a statistic.',
+  trigger: {
+    kind: sdk.DefaultTriggerKind.WhileWriting,
+    condition: 'The draft asserts a statistic without a source',
+    surfaces: [sdk.ContextualTriggerSurface.Docs, sdk.ContextualTriggerSurface.Email],
+  },
+});
+```
+
+- `name` — optional label in the agent builder (max 80 characters).
+- `instructions` — optional text appended for that routine's run (max 20,000 characters). Omit when
+  the base `setInstructions` already cover the job.
+- `trigger` — one `DefaultTriggerDefinition`: schedule (`kind: Schedule` + `rruleString`),
+  while-writing (`kind: WhileWriting` + `condition` / `surfaces`), or a pack-declarable event
+  (`kind: Event` + mail `message_received` / `message_sent` or Slack `message_keyword`). Docs
+  events and Slack `agent_mentioned` are builder-only and are not pack-declarable.
+
+Routines share the one-schedule and event-count caps with plain `defaultTriggers`. Docs folds each
+routine into the matching installed-agent default on release (name and instruction ride on that
+trigger). Metadata still copies at install time — see [Installation refresh](#installation-refresh).
 
 ## `setDefaultScheduleTrigger({rruleString})`
+
+Use when the schedule only wakes the agent and the base instructions already cover that run. For a
+named daily brief (or any schedule whose action differs from the base prompt), prefer
+`addDefaultRoutine` with a schedule trigger instead.
 
 ```typescript
 pack.setDefaultScheduleTrigger({
@@ -82,6 +142,9 @@ Use the accepted/rejected parts above when choosing test cases.
 
 ## `setDefaultWhileWritingTrigger({condition, surfaces})`
 
+Use when while-writing assistance should just wake the agent under the base instructions. Prefer
+`addDefaultRoutine` when that assist needs its own name or per-run instructions.
+
 ```typescript
 pack.setDefaultWhileWritingTrigger({
   condition: "Offer a citation when the user asserts a statistic",
@@ -94,7 +157,7 @@ array of `sdk.ContextualTriggerSurface` values (e.g. `Docs`, `Email`) naming whe
 
 ## Installation refresh
 
-Triggers and tool grants are copied at install time; later uploads do not live-sync them.
+Triggers, routines, and tool grants are copied at install time; later uploads do not live-sync them.
 To verify a changed definition in the builder, reinstall the agent if the product surface
 supports refreshing an install. Otherwise create a fresh pack in a new directory and install it:
 
@@ -132,7 +195,9 @@ repository, use a clean working tree.
 import * as sdk from "@superhuman/plugins-sdk";
 
 export const pack = sdk.newAgent();
-pack.setInstructions("print hello world, then send a slack message to myself for the current date");
+pack.setInstructions(
+  "You help an ops team stay on top of status and drafts. Keep replies short.",
+);
 
 pack.setTools({
   docs: true,
@@ -141,15 +206,25 @@ pack.setTools({
   connectors: [{packId: 1000}, {packId: 1002}, {packId: 1004}],
 });
 
-pack.setDefaultScheduleTrigger({
-  rruleString: [
-    "DTSTART;TZID=America/New_York:20260101T090000",
-    "RRULE:FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0",
-  ].join("\n"),
+pack.addDefaultRoutine({
+  name: 'Monday brief',
+  instructions: 'Summarize overnight status changes. Include source links.',
+  trigger: {
+    kind: sdk.DefaultTriggerKind.Schedule,
+    rruleString: [
+      "DTSTART;TZID=America/New_York:20260101T090000",
+      "RRULE:FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0",
+    ].join("\n"),
+  },
 });
 
-pack.setDefaultWhileWritingTrigger({
-  condition: "Offer a citation when the user asserts a statistic",
-  surfaces: [sdk.ContextualTriggerSurface.Docs, sdk.ContextualTriggerSurface.Email],
+pack.addDefaultRoutine({
+  name: 'Citation assist',
+  instructions: 'Offer a citation when the draft asserts a statistic.',
+  trigger: {
+    kind: sdk.DefaultTriggerKind.WhileWriting,
+    condition: "Offer a citation when the user asserts a statistic",
+    surfaces: [sdk.ContextualTriggerSurface.Docs, sdk.ContextualTriggerSurface.Email],
+  },
 });
 ```

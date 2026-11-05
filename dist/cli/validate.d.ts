@@ -2,6 +2,8 @@ import type { AgentTool } from '../types';
 import type { ArgumentsCamelCase } from 'yargs';
 import type { Client } from '../helpers/external-api/coda';
 import type { PackVersionMetadata } from '../compiled_types';
+/** Validates exports for CLI commands only, calling printAndExit on failure. */
+export declare function validateExports(moduleExports: unknown): void;
 interface ValidateArgs {
     manifestFile: string;
     checkDeprecationWarnings: boolean;

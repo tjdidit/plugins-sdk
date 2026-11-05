@@ -1,12 +1,19 @@
 ---
 name: create-agent-pack
-description: "Create, build, validate, and upload a Packs SDK agent (pack.ts using sdk.newAgent()) to your Coda/Superhuman account, including registering an API token, wiring up tools (docs/mail/webSearch/connectors) and triggers (schedule/while-writing), and installing it from the agent directory. Use this whenever a developer wants to build a Coda/Superhuman agent pack, test a schedule trigger or rrule string, or asks to 'create an agent' / 'upload a pack' / 'make a pack.ts'. Also use for iterating on an existing agent pack, such as adding tools, changing instructions, adding a second pack, or adding a trigger."
+description: Create or update a Superhuman Go agent using sdk.newAgent(), including its instructions, tools, routines, triggers, validation, upload, and installation. Use when authoring an agent or changing its routines or triggers; use plugin-scaffold for connector plugins built with sdk.newPack().
 ---
 
-# Create an agent pack
+# Create an agent plugin
 
-Builds a minimal agent on top of the Packs SDK (`sdk.newAgent()`) and publishes it to a Coda/Superhuman
-account. Full SDK docs: https://docs.superhuman.com/packs/build/latest.
+Build a minimal agent with the Plugins SDK (`sdk.newAgent()`). Complete local
+authoring after validation succeeds, or report the specific blocker. Create a server
+listing, upload, install, or run the agent remotely only when the user requests those
+operations. Release only on an explicit release request. Full SDK docs: https://docs.superhuman.com/packs/build/latest.
+
+For connector plugins that supply formulas or sync tables, use
+[plugin-scaffold](../plugin-scaffold/SKILL.md) and
+[plugin-tools](../plugin-tools/SKILL.md). This workflow is for `sdk.newAgent()`;
+its existing `create-agent-pack` invocation name remains supported.
 
 An agent is defined almost entirely by three builder calls on `pack.ts`:
 
@@ -18,8 +25,32 @@ pack.setInstructions('Print hello world.'); // the only required call
 pack.setTools({docs: true}); // least privilege: uncomment more as needed
 ```
 
-See `references/api.md` for the full `setTools`/trigger signatures (connector formula filters,
-`setDefaultScheduleTrigger`, `setDefaultWhileWritingTrigger`) and how to look up a connector's pack ID.
+See `references/api.md` for the full `setTools` / routine / trigger signatures
+(`addDefaultRoutine`, `setDefaultScheduleTrigger`, `setDefaultWhileWritingTrigger`,
+event triggers) and how to look up a connector's pack ID.
+
+## Routines mental model
+
+A **routine** is one named job on this agent: a label, optional per-run instructions,
+and exactly one trigger (schedule, while-writing, or a pack-declarable event). Prefer
+`addDefaultRoutine` when the agent has more than one wake-up path, or when a wake-up
+should do something different from the base `setInstructions` prompt. Use a plain
+trigger setter (`setDefaultScheduleTrigger`, and so on) only when the trigger just
+wakes the agent and the base instructions already cover that run.
+
+| Do | Do not |
+| --- | --- |
+| One agent, many jobs (daily brief, Slack keyword watch, while-writing assist) | Treat routines as multi-agent orchestration or handoff to another custom agent |
+| Give every distinct job a short `name` | Leave several triggers unnamed when the user cares which job fired |
+| Add `instructions` only when that job differs from the base prompt | Duplicate the whole system prompt into every routine |
+| Share the agent's tools and connectors across routines | Expect a routine to grant a different connector set or call another agent as a tool |
+
+Routines and plain default triggers share the same caps (one schedule; the same event
+count limits). Docs maps `defaultRoutines` into the installed agent definition on
+release, so named routines from the SDK do land for installers. Triggers and routine
+metadata still copy at install time — reinstall (or a fresh pack) after you change them.
+Ask which jobs the agent should run, and whether each job's action differs from the base
+prompt, before writing triggers.
 
 ## Work in your own directory
 
@@ -51,9 +82,9 @@ npx packs login
 ```
 
 Opens your account page to create a **Pack-scoped** API token, then prompts
-you to paste it in and prints your identity to confirm. (Non-interactively, or for a
-single-tenant/custom-domain account, pass `--apiToken <token>` and, if your org uses a
-custom domain, `--codaApiEndpoint https://your-org.coda.io`.)
+you to paste it in and prints your identity to confirm. Have the user enter the
+token in their own terminal. Keep it out of chat, source, and command arguments.
+For a custom-domain account, use `--codaApiEndpoint https://your-org.coda.io`.
 
 ```bash
 npx packs whoami
@@ -70,8 +101,11 @@ you only repeat `login` when you start a directory tree outside the one you alre
 `setInstructions`, docs-only `setTools` presets, and a commented-out schedule trigger — no git or
 template install needed. (Bare `npx packs init` scaffolds an empty formula pack instead.)
 Fill in `setInstructions` (required) and `setTools`
-(everything left out of `setTools` is off). Ask what the agent should actually do and which
-tools/connectors it needs before writing this — don't guess a persona or connector IDs.
+(everything left out of `setTools` is off). Prefer `addDefaultRoutine` for each named job
+(see [Routines mental model](#routines-mental-model) and `references/api.md`); keep a plain
+trigger setter only when the wake-up needs no separate name or per-run instructions. Ask
+what the agent should actually do, which jobs should wake it, and which tools/connectors it
+needs before writing this — don't guess a persona or connector IDs.
 
 ### 2. Validate (local, no token needed)
 
@@ -162,10 +196,11 @@ directory is a git repo.
 
 ## Two packs, or a second install
 
-**Triggers and tool grants are copied at install time — they don't live-sync from later uploads.** If
-you already installed an agent, then upload a new version that changes `setDefaultScheduleTrigger` (or
-tools), the already-installed instance's builder view won't reflect the change. To actually see a new
-trigger/tool definition rendered in the builder, either:
+**Triggers, routines, and tool grants are copied at install time — they don't live-sync from later
+uploads.** If you already installed an agent, then upload a new version that changes
+`addDefaultRoutine`, `setDefaultScheduleTrigger` (or tools), the already-installed instance's
+builder view won't reflect the change. To actually see a new routine/trigger/tool definition
+rendered in the builder, either:
 
 - Create a **fresh pack in a new directory** (`cp pack.ts` into it, `npm install`, `login`,
   `create` with a new name, `upload`) and install _that_, so the very first install already carries the

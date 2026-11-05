@@ -16,9 +16,20 @@ import {importManifest} from './helpers';
 import {isResponseError} from '../helpers/external-api/coda';
 import {isTestCommand} from './helpers';
 import {makeManifestFullPath} from './helpers';
+import path from 'path';
 import {print} from '../testing/helpers';
 import {printAndExit} from '../testing/helpers';
+import {validatePackDefinitionExports} from '../helpers/pack_exports';
 import {validatePackVersionMetadata} from '../testing/upload_validation';
+
+/** Validates exports for CLI commands only, calling printAndExit on failure. */
+export function validateExports(moduleExports: unknown): void {
+  try {
+    validatePackDefinitionExports(moduleExports);
+  } catch (error: unknown) {
+    printAndExit(error instanceof Error ? error.message : String(error));
+  }
+}
 
 interface ValidateArgs {
   manifestFile: string;
@@ -37,6 +48,8 @@ export async function handleValidate({
 }: ArgumentsCamelCase<ValidateArgs>) {
   const fullManifestPath = makeManifestFullPath(manifestFile);
   const {bundlePath} = await compilePackBundle({manifestPath: fullManifestPath, minify: false});
+  const packDefinitionModule = await import(path.resolve(bundlePath));
+  validateExports(packDefinitionModule);
   const manifest = await importManifest<PackVersionDefinition>(bundlePath);
 
   // Since it's okay to not specify a version, we inject one if it's not provided.

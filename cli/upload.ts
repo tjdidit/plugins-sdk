@@ -26,6 +26,7 @@ import {printAndExit as printAndExitImpl} from '../testing/helpers';
 import {readFile} from '../testing/helpers';
 import {tryParseSystemError} from './errors';
 import {v4} from 'uuid';
+import {validateExports} from './validate';
 import {validateMetadata} from './validate';
 
 interface UploadArgs {
@@ -87,6 +88,8 @@ export async function handleUpload({
     timerStrategy,
   });
 
+  const packDefinitionModule = await import(path.resolve(bundlePath));
+  validateExports(packDefinitionModule);
   const manifest = await importManifest<PackVersionDefinition>(bundlePath);
 
   // Since package.json isn't in dist, we grab it from the root directory instead.
